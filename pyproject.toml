@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "ocr-dictionary"
+version = "0.1.0"
+description = ""
+authors = ["aka_lacie"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+pytesseract = "^0.3.10"
+pillow = "^10.3.0"
+pypinyin = "^0.51.0"
+pygetwindow = "^0.0.9"
+opencv-python = "^4.9.0.80"
+pyautogui = "^0.9.54"
+keyboard = "^0.13.5"
+easyocr = "^1.7.1"
+mouse = "^0.7.1"
+torch = "2.3.0+cu121"
+torchvision = "^0.18.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
