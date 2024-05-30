@@ -9,6 +9,7 @@ import os
 import sys
 import threading
 import uuid
+import cv2
 import easyocr
 from PIL import Image
 import numpy as np
@@ -17,6 +18,7 @@ import pyautogui
 import json
 from tkinter import Label, Tk, Canvas, Toplevel, TclError
 import keyboard
+import mouse
 
 with open('config.json', 'r') as file:
     CONFIG = json.load(file)
@@ -137,12 +139,52 @@ def capture(bbox=None, fullscreen=False):
     # Capture the selected area of the game window
     img = pyautogui.screenshot(region=bbox)
 
-    processed_img = img.convert('L') if CONFIG['use_grayscale'] else img
-
-    # Display the processed image
-    # processed_img.show()
     bbox = [bbox[0], bbox[1], bbox[0] + bbox[2], bbox[1] + bbox[3]] # [x1, y1, x2, y2]
-    return processed_img, bbox
+    return img, bbox
+
+def preprocess_image(img: Image.Image) -> Image.Image:
+    """
+    Preprocess the given image using OpenCV before performing OCR.
+
+    Args:
+        img (PIL.Image.Image): The input image to preprocess.
+
+    Returns:
+        PIL.Image.Image: The preprocessed image.
+    """
+    # Convert PIL image to OpenCV format + grayscale
+    gray = cv2.cvtColor(np.array(img), cv2.COLOR_BGR2GRAY)
+    
+    # Apply adaptive thresholding to separate text from the background
+    binary = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2)
+    
+    # Use morphological operations to enhance the text regions
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+    morphed = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel, iterations=2)
+    
+    # Find contours
+    contours, _ = cv2.findContours(morphed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    # Create a mask to fill the text regions
+    mask = np.zeros_like(gray)
+    
+    for contour in contours:
+        # Filter contours based on area and aspect ratio
+        x, y, w, h = cv2.boundingRect(contour)
+        aspect_ratio = w / float(h)
+        if 0.2 < aspect_ratio < 5 and cv2.contourArea(contour) > 50:
+            cv2.drawContours(mask, [contour], -1, (255), thickness=cv2.FILLED)
+    
+    # Isolate the text using the mask
+    isolated_text = cv2.bitwise_and(gray, gray, mask=mask)
+    
+    # Invert the isolated text to get black text on a white background
+    final_result = cv2.bitwise_not(isolated_text)
+
+    # Convert the processed image back to PIL format
+    img = Image.fromarray(final_result)
+    img.show()
+    return img
 
 def perform_ocr(img: Image.Image) -> list[tuple[list[int], str, float]]:
     """
@@ -249,7 +291,8 @@ def run(manual=False, fullscreen=False):
     vocab_canvas = VocabCanvas(root)
 
     for i, img in enumerate(to_ocr):
-        easyocr_results = perform_ocr(img)
+        img_to_ocr = preprocess_image(img) if CONFIG['preprocess_image'] else img
+        easyocr_results = perform_ocr(img_to_ocr)
 
         if not easyocr_results:
             print("No text detected.")
@@ -259,6 +302,7 @@ def run(manual=False, fullscreen=False):
 
         for item in easyocr_results:
             bbox, text, confidence = item # bbox = [x1, y1, x2, y2]
+            text = text.replace(':', '')
             matches = find_vocab_matches(text)
 
             # apply offset to bbox
@@ -273,10 +317,8 @@ def run(manual=False, fullscreen=False):
             for n, vocab in enumerate(matches):
                 if not vocab:
                     continue
-                vocab_bbox = [int(x1 + n * width), y1, int(x1 + (n + 1) * width), y2]
+                vocab_bbox = [int(x1 + n * width), int(y1), int(x1 + (n + 1) * width), int(y2)]
                 vocab_canvas.add_vocab_card(vocab, vocab_bbox)
-        
-        root.update()  # Update the GUI to reflect changes
     
 class VocabCanvas(Canvas):
     def __init__(self, root: Tk):
@@ -397,13 +439,15 @@ if __name__ == "__main__":
     keyboard.add_hotkey(CONFIG['manual_capture_hotkey'], lambda: run(manual=True))
     keyboard.add_hotkey(CONFIG['configure_bbox_hotkey'], configure_bbox)
     keyboard.add_hotkey(CONFIG['fullscreen_capture_hotkey'], lambda: run(fullscreen=True))
+    mouse.on_middle_click(lambda: run(fullscreen=True))
     keyboard.add_hotkey('f8', toggle_save)
 
     root = Tk()
     root.attributes('-fullscreen', True, '-topmost', True, '-alpha', 0)
     # root.overrideredirect(True)
 
-    keyboard.add_hotkey('esc', lambda: clear_canvases(root)) #TODO: fix this
+    keyboard.add_hotkey('esc', lambda: clear_canvases(root))
+    mouse.on_right_click(lambda: clear_canvases(root))
 
     print("Ready!")
     try:

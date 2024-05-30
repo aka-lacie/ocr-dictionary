@@ -14,7 +14,7 @@
         843,
         467
     ],
-    "use_grayscale": false,
+    "preprocess_image": false,
     "confidence_threshold": 0.2,
     "save_data": false,
     "save_dir": "D:\\Program Files\\GameOCR"
