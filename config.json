@@ -28,6 +28,7 @@
     ],
     "preprocess_image": true,
     "confidence_threshold": 0.2,
+    "verbose": false,
     "save_data": false,
     "save_dir": "D:\\Program Files\\GameOCR"
 }

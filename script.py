@@ -16,7 +16,7 @@ import numpy as np
 import yaml
 import pyautogui
 import json
-from tkinter import Label, Tk, Canvas, Toplevel, TclError
+from tkinter import Frame, Label, Tk, Canvas, Toplevel, TclError
 import keyboard
 import mouse
 
@@ -39,9 +39,11 @@ with open('sim_cn_dictionary.json', 'r') as file:
     DICTIONARY = {}
     for entry in list_of_dicts:
         if entry['simplified'] in DICTIONARY:
-            pass # TODO: handle duo yin zi
+            # If the simplified character is already in the dictionary, append the new entry to its list
+            DICTIONARY[entry['simplified']].append((entry['traditional'], entry['pinyin'], entry['english']))
         else:
-            DICTIONARY[entry['simplified']] = (entry['traditional'], entry['pinyin'], entry['english'])
+            # If the simplified character is not in the dictionary, add it with a list containing one pronunciation
+            DICTIONARY[entry['simplified']] = [(entry['traditional'], entry['pinyin'], entry['english'])]
 
 def clear_canvases(root: Tk):
     for widget in root.winfo_children():
@@ -173,6 +175,7 @@ def strict_preprocess_image(img: Image.Image, tolerance=10) -> Image.Image:
 
     # Convert the processed image back to PIL format
     img = Image.fromarray(masked_image)
+    if CONFIG["verbose"]: img.show()
     return img
 
 
@@ -191,9 +194,11 @@ def perform_ocr(img: Image.Image) -> list[tuple[list[int], str, float]]:
     """
     # Perform OCR with EasyOCR
     easyocr_results = reader.readtext(np.array(img))
+    easyocr_text = "\n".join([item[1] for item in easyocr_results])
+    if CONFIG["verbose"]: print(easyocr_text)
 
     # Filter out text regions with low confidence
-    easyocr_results = [item for item in easyocr_results if item[2] > CONFIG['confidence_threshold']]
+    # easyocr_results = [item for item in easyocr_results if item[2] > CONFIG['confidence_threshold']]
     
     # change bbox format to [x1, y1, x2, y2]
     for i, item in enumerate(easyocr_results):
@@ -336,7 +341,22 @@ class VocabCard:
     def __init__(self, parent: VocabCanvas, vocab: str, bbox: list[int]):
         self.parent = parent
         self.simplified = vocab
-        self.traditional, self.pinyin, self.english = DICTIONARY[vocab]
+        self.traditional = DICTIONARY[vocab][0][0]
+
+        pinyin_list = [entry[1] for entry in DICTIONARY[vocab]]
+        english_list = [entry[2] for entry in DICTIONARY[vocab]]
+
+        def format_entries(pinyin_list, english_list):
+            entries = {}
+            for pinyin, english in zip(pinyin_list, english_list):
+                if pinyin in entries:
+                    entries[pinyin].append(english)
+                else:
+                    entries[pinyin] = [english]
+            return entries
+        
+        self.entries = format_entries(pinyin_list, english_list) # {pinyin: [english]}
+
         self.bbox = bbox
         self.card = None
         self.hoverbox = None
@@ -374,12 +394,26 @@ class VocabCard:
         try:
             self.card = Toplevel(self.parent)
             self.card.attributes('-alpha', 1)
+            self.card.config(bg='#ffffd7')
             self.card.overrideredirect(True)
             self.card.wm_attributes("-topmost", True)
 
-            self.label = Label(self.card, text=f"{self.simplified} | {self.traditional}\n{self.english}\n\n{self.pinyin}",
-                               bg='#ffffd7', font=('Arial', 14), justify='left', anchor='sw', padx=8, wraplength=500)
-            self.label.pack(fill='both', expand=True)
+            title = Label(self.card, text=f"{self.simplified} | {self.traditional}", bg='#ffffd7', font=('Arial', 16), justify='left', anchor='w', padx=8)
+            title.pack(fill='both', expand=True)
+
+            for pinyin in self.entries:
+                if len(self.entries) > 1:
+                    # enumerate english
+                    english = '\n'.join([f"{i}. {e}" for i, e in enumerate(self.entries[pinyin], 1)])
+                else:
+                    english = self.entries[pinyin][0]
+                label = Label(self.card, text=f"{english}\n\n{pinyin}", bg='#ffffd7', font=('Arial', 14), justify='left', anchor='w', padx=8, wraplength=500)
+                if len(self.entries) > 1:
+                    label.config(font=('Arial', 12))
+                    # Add a dividing line
+                    line = Frame(self.card, height=1, bg='black')
+                    line.pack(fill='x', padx=5, pady=5)
+                label.pack(fill='both', expand=True)
 
             self.card.update_idletasks()
 
@@ -422,6 +456,10 @@ def toggle_save():
     update_config(('save_data', not CONFIG['save_data']))
     print(f"Saving OCR data {'on' if CONFIG['save_data'] else 'off'}")
 
+def toggle_verbose():
+    update_config(('verbose', not CONFIG['verbose']))
+    print(f"Verbose mode {'on' if CONFIG['verbose'] else 'off'}")
+
 if __name__ == "__main__":
     # Bind the function to hotkey
     keyboard.add_hotkey(CONFIG['manual_capture_hotkey'], lambda: run(manual=True))
@@ -430,6 +468,7 @@ if __name__ == "__main__":
     mouse.on_middle_click(lambda: run(fullscreen=True))
     keyboard.add_hotkey('f8', toggle_save)
     keyboard.add_hotkey('f9', pick_text_color)
+    keyboard.add_hotkey('f10', toggle_verbose)
 
     root = Tk()
     root.attributes('-fullscreen', True, '-topmost', True, '-alpha', 0)
