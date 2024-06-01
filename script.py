@@ -341,21 +341,26 @@ class VocabCard:
     def __init__(self, parent: VocabCanvas, vocab: str, bbox: list[int]):
         self.parent = parent
         self.simplified = vocab
-        self.traditional = DICTIONARY[vocab][0][0]
 
+        traditional_list = [entry[0] for entry in DICTIONARY[vocab]]
         pinyin_list = [entry[1] for entry in DICTIONARY[vocab]]
         english_list = [entry[2] for entry in DICTIONARY[vocab]]
 
         def format_entries(pinyin_list, english_list):
             entries = {}
-            for pinyin, english in zip(pinyin_list, english_list):
-                if pinyin in entries:
-                    entries[pinyin].append(english)
+            for traditional, pinyin, english in zip(traditional_list, pinyin_list, english_list):
+                if traditional in entries:
+                    if pinyin in entries[traditional]:
+                        entries[traditional][pinyin].append(english)
+                    else:
+                        entries[traditional][pinyin] = [english]
                 else:
-                    entries[pinyin] = [english]
+                    entries[traditional] = {pinyin: [english]}
+                    
             return entries
         
-        self.entries = format_entries(pinyin_list, english_list) # {pinyin: [english]}
+        self.entries = format_entries(pinyin_list, english_list) # {traditional: {pinyin: [english]}}
+        self.is_single_entry = len(traditional_list) == 1 and len(pinyin_list) == 1 and len(english_list) == 1
 
         self.bbox = bbox
         self.card = None
@@ -398,22 +403,41 @@ class VocabCard:
             self.card.overrideredirect(True)
             self.card.wm_attributes("-topmost", True)
 
-            title = Label(self.card, text=f"{self.simplified} | {self.traditional}", bg='#ffffd7', font=('Arial', 16), justify='left', anchor='w', padx=8)
-            title.pack(fill='both', expand=True)
+            for i, traditional in enumerate(self.entries):
+                title = Label(self.card, text=f"{self.simplified} | {traditional}", bg='#ffffd7', font=('Arial', 16), justify='left', anchor='w', padx=8)
+                title.pack(fill='both', expand=True)
 
-            for pinyin in self.entries:
-                if len(self.entries) > 1:
-                    # enumerate english
-                    english = '\n'.join([f"{i}. {e}" for i, e in enumerate(self.entries[pinyin], 1)])
-                else:
-                    english = self.entries[pinyin][0]
-                label = Label(self.card, text=f"{english}\n\n{pinyin}", bg='#ffffd7', font=('Arial', 14), justify='left', anchor='w', padx=8, wraplength=500)
-                if len(self.entries) > 1:
-                    label.config(font=('Arial', 12))
-                    # Add a dividing line
-                    line = Frame(self.card, height=1, bg='black')
-                    line.pack(fill='x', padx=5, pady=5)
-                label.pack(fill='both', expand=True)
+                pinyin_list = self.entries[traditional]
+                for j, pinyin in enumerate(pinyin_list):
+                    english_list = pinyin_list[pinyin]
+                    if len(english_list) > 1:
+                        # enumerate english
+                        english = '\n'.join([f"{i}. {e}" for i, e in enumerate(english_list, 1)])
+                    else:
+                        english = english_list[0]
+                    # label = Label(self.card, text=f"{english}\n\n{pinyin}", bg='#ffffd7', font=('Arial', 14), justify='left', anchor='w', padx=8, wraplength=500)
+                    english_label = Label(self.card, text=f"{english}", bg='#ffffd7', font=('Arial', 14), justify='left', anchor='w', padx=8, wraplength=500)
+                    english_label.pack(fill='both', expand=True)
+
+                    pinyin_label = Label(self.card, text=f"{pinyin}", bg='#ffffd7', fg='red', font=('Arial', 14), justify='left', anchor='w', padx=8)
+                    pinyin_label.pack(fill='both', expand=True)
+
+                    if not self.is_single_entry:
+                        english_label.config(font=('Arial', 12))
+                        pinyin_label.config(font=('Arial', 12))
+
+                    if j < len(pinyin_list) - 1:
+                        # Add a dividing line
+                        line = Frame(self.card, height=1, bg='black')
+                        line.pack(fill='x', padx=5, pady=5)
+
+                    english_label.pack(fill='both', expand=True)
+                    pinyin_label.pack(fill='both', expand=True)
+                
+                if i < len(self.entries) - 1:
+                    # Add a divider between traditionals
+                    divider = Frame(self.card, height=2, bg='black')
+                    divider.pack(fill='x', padx=5, pady=5)  
 
             self.card.update_idletasks()
 
@@ -460,6 +484,10 @@ def toggle_verbose():
     update_config(('verbose', not CONFIG['verbose']))
     print(f"Verbose mode {'on' if CONFIG['verbose'] else 'off'}")
 
+def toggle_strict_mode():
+    update_config(('preprocess_image', not CONFIG['preprocess_image']))
+    print(f"Strict mode {'on' if CONFIG['preprocess_image'] else 'off'}")
+
 if __name__ == "__main__":
     # Bind the function to hotkey
     keyboard.add_hotkey(CONFIG['manual_capture_hotkey'], lambda: run(manual=True))
@@ -469,6 +497,7 @@ if __name__ == "__main__":
     keyboard.add_hotkey('f8', toggle_save)
     keyboard.add_hotkey('f9', pick_text_color)
     keyboard.add_hotkey('f10', toggle_verbose)
+    keyboard.add_hotkey('f11', toggle_strict_mode)
 
     root = Tk()
     root.attributes('-fullscreen', True, '-topmost', True, '-alpha', 0)
