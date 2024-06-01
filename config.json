@@ -14,7 +14,19 @@
         843,
         467
     ],
-    "preprocess_image": false,
+    "text_colors": [
+        [
+            236,
+            229,
+            216
+        ],
+        [
+            248,
+            211,
+            62
+        ]
+    ],
+    "preprocess_image": true,
     "confidence_threshold": 0.2,
     "save_data": false,
     "save_dir": "D:\\Program Files\\GameOCR"
