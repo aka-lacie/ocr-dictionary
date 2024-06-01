@@ -40,7 +40,7 @@ with open('cedict_ts.u8', 'r', encoding='utf-8') as file:
         parsed['traditional'] = traditional
         parsed['simplified'] = simplified
         parsed['pinyin'] = convertPinyin(pinyin)
-        parsed['english'] = english
+        parsed['english'] = convertPinyin(english)
         list_of_dicts.append(parsed)
 
     def remove_surnames():
@@ -58,8 +58,8 @@ with open('cedict_ts.u8', 'r', encoding='utf-8') as file:
         
         #remove entries for surnames from the data (optional):
 
-        print("Removing Surnames . . .")
-        remove_surnames()
+        # print("Removing Surnames . . .")
+        # remove_surnames()
 
         with open('sim_cn_dictionary.json', 'w') as file:
             json.dump(list_of_dicts, file)
