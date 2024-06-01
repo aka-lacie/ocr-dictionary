@@ -24,9 +24,19 @@
             248,
             211,
             62
+        ],
+        [
+            245,
+            202,
+            47
+        ],
+        [
+            255,
+            255,
+            255
         ]
     ],
-    "preprocess_image": true,
+    "preprocess_image": false,
     "confidence_threshold": 0.2,
     "verbose": false,
     "save_data": false,
