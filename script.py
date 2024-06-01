@@ -84,8 +84,9 @@ def draw_manual_bbox():
         canvas.delete('bbox')
         safe_destroy_canvas()  # Close the overlay window
     
-    def on_hotkey_press(event):
+    def on_escape(event):
         safe_destroy_canvas()
+        return
     
     def safe_destroy_canvas():
         try:
@@ -101,7 +102,7 @@ def draw_manual_bbox():
     canvas.bind('<Button-1>', on_mouse_down)
     canvas.bind('<B1-Motion>', on_mouse_move)
     canvas.bind('<ButtonRelease-1>', on_mouse_up)
-    escape = root.bind('<Escape>', on_hotkey_press)
+    escape = root.bind('<Escape>', on_escape)
 
     root.wait_window(canvas)
 
@@ -114,8 +115,20 @@ def configure_bbox():
     dialog_bbox = draw_manual_bbox()
     print("Select the dialog responses region")
     responses_bbox = draw_manual_bbox()
+    if not dialog_bbox or not responses_bbox:
+        return
     update_config(('dialog_bbox', dialog_bbox), ('responses_bbox', responses_bbox))
     print("Configuration saved.")
+
+def pick_text_color():
+    x, y = pyautogui.position()
+    color = pyautogui.pixel(x, y)
+    print(f"Text color: {color}")
+
+    current_list = CONFIG['text_colors']
+    if list(color) not in current_list:
+        current_list.append(color)
+        update_config(('text_color', current_list))
 
 def capture(bbox=None, fullscreen=False):
     """
@@ -134,7 +147,7 @@ def capture(bbox=None, fullscreen=False):
         # crop out bottom UID
         bbox[3] -= 40
     else:
-        bbox = bbox or draw_manual_bbox()
+        bbox = bbox or draw_manual_bbox() or [0, 0, pyautogui.size().width, pyautogui.size().height - 40]
 
     # Capture the selected area of the game window
     img = pyautogui.screenshot(region=bbox)
@@ -142,49 +155,26 @@ def capture(bbox=None, fullscreen=False):
     bbox = [bbox[0], bbox[1], bbox[0] + bbox[2], bbox[1] + bbox[3]] # [x1, y1, x2, y2]
     return img, bbox
 
-def preprocess_image(img: Image.Image) -> Image.Image:
-    """
-    Preprocess the given image using OpenCV before performing OCR.
+def strict_preprocess_image(img: Image.Image, tolerance=10) -> Image.Image:
+    # Remove all pixels that are not text colors
+    image = cv2.cvtColor(np.array(img), cv2.COLOR_BGRA2BGR)
+    
+    lower_bounds = [np.array([max(0, c - tolerance) for c in color]) for color in CONFIG['text_colors']]
+    upper_bounds = [np.array([min(255, c + tolerance) for c in color]) for color in CONFIG['text_colors']]
 
-    Args:
-        img (PIL.Image.Image): The input image to preprocess.
+    masks = [cv2.inRange(image, lower, upper) for lower, upper in zip(lower_bounds, upper_bounds)]
 
-    Returns:
-        PIL.Image.Image: The preprocessed image.
-    """
-    # Convert PIL image to OpenCV format + grayscale
-    gray = cv2.cvtColor(np.array(img), cv2.COLOR_BGR2GRAY)
-    
-    # Apply adaptive thresholding to separate text from the background
-    binary = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2)
-    
-    # Use morphological operations to enhance the text regions
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-    morphed = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel, iterations=2)
-    
-    # Find contours
-    contours, _ = cv2.findContours(morphed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
-    # Create a mask to fill the text regions
-    mask = np.zeros_like(gray)
-    
-    for contour in contours:
-        # Filter contours based on area and aspect ratio
-        x, y, w, h = cv2.boundingRect(contour)
-        aspect_ratio = w / float(h)
-        if 0.2 < aspect_ratio < 5 and cv2.contourArea(contour) > 50:
-            cv2.drawContours(mask, [contour], -1, (255), thickness=cv2.FILLED)
-    
-    # Isolate the text using the mask
-    isolated_text = cv2.bitwise_and(gray, gray, mask=mask)
-    
-    # Invert the isolated text to get black text on a white background
-    final_result = cv2.bitwise_not(isolated_text)
+    masks = [cv2.inRange(image, lower, upper) for lower, upper in zip(lower_bounds, upper_bounds)]
+    mask = masks[0]
+    for m in masks[1:]:
+        mask = cv2.bitwise_or(mask, m)
+
+    masked_image = cv2.bitwise_and(image, image, mask=mask)
 
     # Convert the processed image back to PIL format
-    img = Image.fromarray(final_result)
-    img.show()
+    img = Image.fromarray(masked_image)
     return img
+
 
 def perform_ocr(img: Image.Image) -> list[tuple[list[int], str, float]]:
     """
@@ -201,8 +191,6 @@ def perform_ocr(img: Image.Image) -> list[tuple[list[int], str, float]]:
     """
     # Perform OCR with EasyOCR
     easyocr_results = reader.readtext(np.array(img))
-    easyocr_text = '\n'.join([item[1] for item in easyocr_results])
-    # print(f"\nEasyOCR detected Chinese text:\n{easyocr_text}")
 
     # Filter out text regions with low confidence
     easyocr_results = [item for item in easyocr_results if item[2] > CONFIG['confidence_threshold']]
@@ -291,7 +279,7 @@ def run(manual=False, fullscreen=False):
     vocab_canvas = VocabCanvas(root)
 
     for i, img in enumerate(to_ocr):
-        img_to_ocr = preprocess_image(img) if CONFIG['preprocess_image'] else img
+        img_to_ocr = strict_preprocess_image(img) if CONFIG['preprocess_image'] else img
         easyocr_results = perform_ocr(img_to_ocr)
 
         if not easyocr_results:
@@ -441,6 +429,7 @@ if __name__ == "__main__":
     keyboard.add_hotkey(CONFIG['fullscreen_capture_hotkey'], lambda: run(fullscreen=True))
     mouse.on_middle_click(lambda: run(fullscreen=True))
     keyboard.add_hotkey('f8', toggle_save)
+    keyboard.add_hotkey('f9', pick_text_color)
 
     root = Tk()
     root.attributes('-fullscreen', True, '-topmost', True, '-alpha', 0)
