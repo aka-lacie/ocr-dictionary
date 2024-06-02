@@ -18,6 +18,7 @@ easyocr = "^1.7.1"
 mouse = "^0.7.1"
 torch = "2.3.0+cu121"
 torchvision = "^0.18.0"
+requests = "^2.32.3"
 
 
 [build-system]
