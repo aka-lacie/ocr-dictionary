@@ -16,7 +16,8 @@ import numpy as np
 import yaml
 import pyautogui
 import json
-from tkinter import Frame, Label, Tk, Canvas, Toplevel, TclError
+from tkinter import Tk, Canvas, TclError
+from vocab import VocabCanvas
 import keyboard
 import mouse
 
@@ -61,7 +62,7 @@ def draw_manual_bbox():
     root.focus_set()  # Set focus to the root window
     root.grab_set()  # Confine all input to this window
 
-    canvas = Canvas(root, bg='white', cursor='cross', highlightthickness=0)
+    canvas = Canvas(root, bg='white', cursor='crosshair', highlightthickness=0)
     canvas.pack(fill='both', expand=True)
 
     # Variables to store the bounding box coordinates
@@ -297,6 +298,7 @@ def run(manual=False, fullscreen=False):
             bbox, text, confidence = item # bbox = [x1, y1, x2, y2]
             text = text.replace(':', '')
             matches = find_vocab_matches(text)
+            if not matches: continue
 
             # apply offset to bbox
             offset = offsets[i]
@@ -308,167 +310,9 @@ def run(manual=False, fullscreen=False):
             width = ( x2 - x1 ) / len(matches)
 
             for n, vocab in enumerate(matches):
-                if not vocab:
-                    continue
+                if not vocab: continue
                 vocab_bbox = [int(x1 + n * width), int(y1), int(x1 + (n + 1) * width), int(y2)]
-                vocab_canvas.add_vocab_card(vocab, vocab_bbox)
-    
-class VocabCanvas(Canvas):
-    def __init__(self, root: Tk):
-        super().__init__(root)
-        self.config(bg='white', bd=0, highlightthickness=0)
-        self.pack(fill='both', expand=True)
-        self.root = root
-        self.vocab_cards: list[VocabCard] = []
-    
-    def add_vocab_card(self, vocab: str, bbox: list[int]):
-        card = VocabCard(self, vocab, bbox)
-        self.vocab_cards.append(card)
-    
-    def shift_focus(self, new_focus):
-        for card in self.vocab_cards:
-            if card == new_focus:
-                card.construct_GUI()
-            else:
-                card.remove_GUI()
-    
-    def destroy(self):
-        for card in self.vocab_cards:
-            card.destroy()
-        super().destroy()
-
-class VocabCard:
-    def __init__(self, parent: VocabCanvas, vocab: str, bbox: list[int]):
-        self.parent = parent
-        self.simplified = vocab
-
-        traditional_list = [entry[0] for entry in DICTIONARY[vocab]]
-        pinyin_list = [entry[1] for entry in DICTIONARY[vocab]]
-        english_list = [entry[2] for entry in DICTIONARY[vocab]]
-
-        def format_entries(pinyin_list, english_list):
-            entries = {}
-            for traditional, pinyin, english in zip(traditional_list, pinyin_list, english_list):
-                if traditional in entries:
-                    if pinyin in entries[traditional]:
-                        entries[traditional][pinyin].append(english)
-                    else:
-                        entries[traditional][pinyin] = [english]
-                else:
-                    entries[traditional] = {pinyin: [english]}
-                    
-            return entries
-        
-        self.entries = format_entries(pinyin_list, english_list) # {traditional: {pinyin: [english]}}
-        self.is_single_entry = len(traditional_list) == 1 and len(pinyin_list) == 1 and len(english_list) == 1
-
-        self.bbox = bbox
-        self.card = None
-        self.hoverbox = None
-        self.initiate_hoverbox()
-        
-    def initiate_hoverbox(self):
-        self.hoverbox = Toplevel(self.parent)
-        self.hoverbox.attributes('-alpha', 0.01)
-        self.hoverbox.wm_attributes("-topmost", True)
-        self.hoverbox.overrideredirect(True)
-
-        self.hoverbox.update_idletasks()
-        self.hoverbox.geometry(f"{self.bbox[2] - self.bbox[0]}x{self.bbox[3] - self.bbox[1]}+{self.bbox[0]}+{self.bbox[1]}")
-
-        self.hoverbox.bind('<Enter>', self.update_card_visibility)
-        self.hoverbox.bind('<Leave>', self.update_card_visibility)
-    
-    def update_card_visibility(self, event):
-        x, y = event.x_root, event.y_root
-        mouse_on_hoverbox = self.bbox[0] <= x <= self.bbox[2] and self.bbox[1] <= y <= self.bbox[3]
-        mouse_on_card = self.card and \
-            self.card.winfo_rootx() <= x <= (self.card.winfo_rootx() + self.card.winfo_width()) and \
-                self.card.winfo_rooty() <= y <= (self.card.winfo_rooty() + self.card.winfo_height())
-        is_focused = mouse_on_hoverbox or mouse_on_card
-
-        if is_focused:
-            self.parent.shift_focus(self)
-        else:
-            self.remove_GUI()
-
-    def construct_GUI(self):
-        if self.card:
-            return # already constructed
-        
-        try:
-            self.card = Toplevel(self.parent)
-            self.card.attributes('-alpha', 1)
-            self.card.config(bg='#ffffd7')
-            self.card.overrideredirect(True)
-            self.card.wm_attributes("-topmost", True)
-
-            for i, traditional in enumerate(self.entries):
-                title = Label(self.card, text=f"{self.simplified} | {traditional}", bg='#ffffd7', font=('Arial', 16), justify='left', anchor='w', padx=8)
-                title.pack(fill='both', expand=True)
-
-                pinyin_list = self.entries[traditional]
-                for j, pinyin in enumerate(pinyin_list):
-                    english_list = pinyin_list[pinyin]
-                    if len(english_list) > 1:
-                        # enumerate english
-                        english = '\n'.join([f"{i}. {e}" for i, e in enumerate(english_list, 1)])
-                    else:
-                        english = english_list[0]
-                    # label = Label(self.card, text=f"{english}\n\n{pinyin}", bg='#ffffd7', font=('Arial', 14), justify='left', anchor='w', padx=8, wraplength=500)
-                    english_label = Label(self.card, text=f"{english}", bg='#ffffd7', font=('Arial', 14), justify='left', anchor='w', padx=8, wraplength=500)
-                    english_label.pack(fill='both', expand=True)
-
-                    pinyin_label = Label(self.card, text=f"{pinyin}", bg='#ffffd7', fg='red', font=('Arial', 14), justify='left', anchor='w', padx=8)
-                    pinyin_label.pack(fill='both', expand=True)
-
-                    if not self.is_single_entry:
-                        english_label.config(font=('Arial', 12))
-                        pinyin_label.config(font=('Arial', 12))
-
-                    if j < len(pinyin_list) - 1:
-                        # Add a dividing line
-                        line = Frame(self.card, height=1, bg='black')
-                        line.pack(fill='x', padx=5, pady=5)
-
-                    english_label.pack(fill='both', expand=True)
-                    pinyin_label.pack(fill='both', expand=True)
-                
-                if i < len(self.entries) - 1:
-                    # Add a divider between traditionals
-                    divider = Frame(self.card, height=2, bg='black')
-                    divider.pack(fill='x', padx=5, pady=5)  
-
-            self.card.update_idletasks()
-
-            padding = 20
-            width = self.card.winfo_reqwidth() + padding
-            height = self.card.winfo_reqheight()
-            self.card.geometry(f"{width}x{height}+{self.bbox[0]}+{self.bbox[1] - height}")
-
-
-            self.card.bind('<Enter>', self.update_card_visibility)
-            self.card.bind('<Leave>', self.update_card_visibility)
-
-
-        except Exception as e:
-            print(f"Error constructing GUI: {e}")
-            self.remove_GUI()
-
-    def remove_GUI(self):
-        if self.card:
-            self.card.destroy()
-            self.card = None
-    
-    def destroy(self):
-        self.remove_GUI()
-        self.hoverbox.destroy()
-
-    def __str__(self):
-        return f"{self.simplified} | {self.traditional} | {self.pinyin}\n{self.english}\n{self.bbox}"
-    
-    def __repr__(self):
-        return f"VocabCard({self.simplified}, {self.bbox}"
+                vocab_canvas.add_vocab_card(vocab, vocab_bbox, DICTIONARY[vocab])
 
 def gracefully_die(event=None):
     keyboard.unhook_all()
@@ -516,8 +360,4 @@ if __name__ == "__main__":
 
 
 # TODO:
-# - automatically poll for new text every second, check for image diff before running OCR
-# - Stylize the vocab cards: place pinyin right above the text, in a larger font
-# - Deal with duoyinzi
 # - Add a way to manually add custom vocab to the dictionary, categorize by game and only show if in that game
-# - Add checkmark + Anki export
