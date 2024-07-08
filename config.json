@@ -2,6 +2,7 @@
     "fullscreen_capture_hotkey": "f5",
     "manual_capture_hotkey": "f6",
     "configure_bbox_hotkey": "f7",
+    "strict_mode_hotkey": "f11",
     "dialog_bbox": [
         825,
         1077,
@@ -36,7 +37,7 @@
             255
         ]
     ],
-    "preprocess_image": false,
+    "preprocess_image": true,
     "confidence_threshold": 0.2,
     "verbose": false,
     "save_data": false,

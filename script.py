@@ -16,7 +16,7 @@ import numpy as np
 import yaml
 import pyautogui
 import json
-from tkinter import Tk, Canvas, TclError
+from tkinter import Tk, Canvas, Toplevel, Frame, Label, TclError
 from vocab import VocabCanvas
 import keyboard
 import mouse
@@ -45,6 +45,9 @@ with open('sim_cn_dictionary.json', 'r') as file:
         else:
             # If the simplified character is not in the dictionary, add it with a list containing one pronunciation
             DICTIONARY[entry['simplified']] = [(entry['traditional'], entry['pinyin'], entry['english'])]
+    
+    PUNCTUATION = '，,。…"?!'
+    ALLOW_LIST = ''.join(set(''.join(DICTIONARY.keys()))) + PUNCTUATION
 
 def clear_canvases(root: Tk):
     for widget in root.winfo_children():
@@ -124,14 +127,73 @@ def configure_bbox():
     print("Configuration saved.")
 
 def pick_text_color():
+    clear_canvases(root)
+
+    root.attributes('-topmost', True)
+    root.attributes('-alpha', 0.01)
+    root.focus_set()  # Set focus to the root window
+    root.grab_set()  # Confine all input to this window
+
+    canvas = Canvas(root, bg='white', cursor='crosshair', highlightthickness=0)
+    canvas.pack(fill='both', expand=True)
+
+    colortag = Toplevel(canvas)
+    colortag.attributes('-alpha', 1)
+    colortag.overrideredirect(True)
+    colortag.wm_attributes("-topmost", True)
+
     x, y = pyautogui.position()
     color = pyautogui.pixel(x, y)
-    print(f"Text color: {color}")
+    color_hex = '#%02x%02x%02x' % color
 
-    current_list = CONFIG['text_colors']
-    if list(color) not in current_list:
-        current_list.append(color)
-        update_config(('text_color', current_list))
+    colortag_frame = Frame(colortag, bg=color_hex, width=50, height=50)
+    colortag_frame.grid(row=0, column=0, sticky='w')
+    colortag_label = Label(colortag, text=f"{color}", font=('Arial', 10), justify='center', padx=8)
+    colortag_label.grid(row=0, column=1, sticky='e')
+
+    colortag.update_idletasks()
+    colortag.geometry(f"{colortag.winfo_reqwidth()}x50+{x+10}+{y+10}")
+
+    def on_mouse_move(event):
+        x, y = event.x, event.y
+        color = pyautogui.pixel(x, y)
+        color_hex = '#%02x%02x%02x' % color
+        colortag_frame.config(bg=color_hex)
+        colortag_label.config(text=f"{color}")
+        
+        colortag.geometry(f"{colortag.winfo_reqwidth()}x50+{x+10}+{y+10}")
+
+    def on_click(event):
+        safe_destroy_canvas()  # Close the overlay window
+
+        x, y = event.x, event.y
+        color = pyautogui.pixel(x, y)
+
+        current_list = CONFIG['text_colors']
+        if list(color) not in current_list:
+            current_list.append(color)
+            update_config(('text_color', current_list))
+    
+    def on_escape(event):
+        safe_destroy_canvas()
+        return
+    
+    def safe_destroy_canvas():
+        try:
+            canvas.destroy()
+        except TclError:
+            pass  # Canvas is already destroyed, do nothing
+        finally:
+            root.attributes('-alpha', 0)  # Reset transparency
+            root.unbind(escape)
+            root.grab_release()  # Release input grab
+
+    # Bind the mouse events to the handlers
+    canvas.bind('<Motion>', on_mouse_move)
+    canvas.bind('<ButtonRelease-1>', on_click)
+    escape = root.bind('<Escape>', on_escape)
+
+    root.wait_window(canvas)
 
 def capture(bbox=None, fullscreen=False):
     """
@@ -166,8 +228,6 @@ def strict_preprocess_image(img: Image.Image, tolerance=10) -> Image.Image:
     upper_bounds = [np.array([min(255, c + tolerance) for c in color]) for color in CONFIG['text_colors']]
 
     masks = [cv2.inRange(image, lower, upper) for lower, upper in zip(lower_bounds, upper_bounds)]
-
-    masks = [cv2.inRange(image, lower, upper) for lower, upper in zip(lower_bounds, upper_bounds)]
     mask = masks[0]
     for m in masks[1:]:
         mask = cv2.bitwise_or(mask, m)
@@ -194,7 +254,11 @@ def perform_ocr(img: Image.Image) -> list[tuple[list[int], str, float]]:
         bbox = [x1, y1, x2, y2]
     """
     # Perform OCR with EasyOCR
-    easyocr_results = reader.readtext(np.array(img))
+    easyocr_results = reader.readtext(np.array(img),
+                                      decoder='wordbeamsearch',
+                                      batch_size=3,
+                                      allowlist=ALLOW_LIST
+                                      )
     easyocr_text = "\n".join([item[1] for item in easyocr_results])
     if CONFIG["verbose"]: print(easyocr_text)
 
@@ -296,7 +360,11 @@ def run(manual=False, fullscreen=False):
 
         for item in easyocr_results:
             bbox, text, confidence = item # bbox = [x1, y1, x2, y2]
-            text = text.replace(':', '')
+            if text[-1] == '?': # jank but helps calibrate character positions
+                bbox[2] -= 30
+            elif text[-1] in PUNCTUATION:
+                bbox[2] -= 20
+            text = text.strip(PUNCTUATION)
             matches = find_vocab_matches(text)
             if not matches: continue
 
@@ -341,7 +409,7 @@ if __name__ == "__main__":
     keyboard.add_hotkey('f8', toggle_save)
     keyboard.add_hotkey('f9', pick_text_color)
     keyboard.add_hotkey('f10', toggle_verbose)
-    keyboard.add_hotkey('f11', toggle_strict_mode)
+    keyboard.add_hotkey(CONFIG['strict_mode_hotkey'], toggle_strict_mode)
 
     root = Tk()
     root.attributes('-fullscreen', True, '-topmost', True, '-alpha', 0)
