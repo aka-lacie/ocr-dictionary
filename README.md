@@ -34,6 +34,7 @@ You will primarily be pressing your scroll-wheel on your mouse to capture a snap
 
 | Action | Default mapping |
 --- | ---
+| Clear screen |  `mouse right click` |
 | Capture fullscreen | `mouse middle click` or `F5` |
 | Capture partial (manual) | `F6` |
 | Colorpick text for `strict_mode`* | `F9` |
