@@ -1,3 +1,5 @@
+# Introduction
+
 Use OCR to instantly do a dictionary lookup by hovering over unselectable text (e.g. in a game). One-click to add vocab to Anki.
 
 ![demo](https://github.com/user-attachments/assets/35faae18-bd4b-4354-b3f2-262f50c9be36)
@@ -57,3 +59,7 @@ If you open Anki in the background, you can automatically add vocab cards to a d
 This project is developed on Windows with the intention of using on Chinese games with solid, horizontal text like Wuthering Wave or Genshin. It has not been tested outside of these environments.
 
 Traditional Chinese and Japanese support will be added next.
+
+## Acknowledgement
+
+This project uses [EasyOCR](https://github.com/JaidedAI/EasyOCR) for character recognition, and CEDICT for dictionary entries.
