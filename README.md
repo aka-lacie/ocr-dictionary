@@ -46,13 +46,15 @@ You will primarily be pressing your scroll-wheel on your mouse to capture a snap
 
 Use colorpicking to select a new color using the crosshairs + color preview. The default supported colors are white, beige-white, and two shades of gold-yellow. (Note the preview may *slightly* misrepresent the true color that gets recorded because tkinter applies a very light filter over the screen.)
 
-## Config
-
-Much of these controls and settings can be adjusted to your liking in `config.json`
-
 ## Anki
 
+[AnkiConnect add-on](https://ankiweb.net/shared/info/2055492159) is required.
+
 If you open Anki in the background, you can automatically add vocab cards to a deck of your choice by clicking on the `+` button on the bottom right of a card. This will automatically filter out duplicates.
+
+## Config
+
+Much of these controls and settings can be adjusted to your liking in `config.json`. For Anki, if your cards are set up in a different language, change the corresponding fields to the correct string names.
 
 ## Support
 
