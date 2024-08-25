@@ -13,20 +13,24 @@ def invoke(action, params={}):
         print(f"Error from AnkiConnect: {result['error']}")
     return result['result']
 
-def add_vocabulary_to_anki(deck_name, vocab_entry):
+def add_vocabulary_to_anki(anki_config, vocab_entry):
+    deck_name = anki_config['deck_name']
+    model_name = anki_config['model']
+    front = anki_config['front']
+    back = anki_config['back']
+
     invoke('createDeck', {'deck': deck_name})
 
     note = {
         'deckName': deck_name,
-        'modelName': "问答题",
+        'modelName': model_name, # "问答题"
         'fields': {
-            '正面': vocab_entry['front'],
-            '背面': vocab_entry['back']
+            front: vocab_entry['front'], # '正面'
+            back: vocab_entry['back'] # '背面'
         },
         'options': {
             'allowDuplicate': False
         },
-        # 'tags': vocab_entry.get('tags', [])
     }
 
     invoke('addNote', {'note': note})
