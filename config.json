@@ -1,8 +1,17 @@
 {
     "fullscreen_capture_hotkey": "f5",
     "manual_capture_hotkey": "f6",
-    "configure_bbox_hotkey": "f7",
+    "colorpick_hotkey": "f9",
+    "toggle_verbose_hotkey": "f10",
     "strict_mode_hotkey": "f11",
+
+    "anki": {
+        "deck_name": "Chinese Vocab in the Wild",
+        "model": "Basic",
+        "front": "Front",
+        "back": "Back"
+    },
+
     "dialog_bbox": [
         825,
         1077,
@@ -35,11 +44,19 @@
             255,
             255,
             255
+        ],
+        [
+            173,
+            173,
+            173
+        ],
+        [
+            239,
+            239,
+            239
         ]
     ],
     "preprocess_image": true,
     "confidence_threshold": 0.2,
-    "verbose": false,
-    "save_data": false,
-    "save_dir": "D:\\Program Files\\GameOCR"
+    "verbose": false
 }

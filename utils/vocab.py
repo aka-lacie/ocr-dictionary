@@ -1,6 +1,7 @@
 import threading
 from tkinter import Button, Canvas, Tk, Toplevel, Label, Frame
-from anki import add_vocabulary_to_anki, build_vocab_entry_from_VocabCard
+from utils.anki import add_vocabulary_to_anki, build_vocab_entry_from_VocabCard
+import json
 
 class VocabCanvas(Canvas):
     def __init__(self, root: Tk):
@@ -155,10 +156,11 @@ class VocabCard:
 
         def add_to_anki_thread():
             vocab_entry = build_vocab_entry_from_VocabCard(self)
-            add_vocabulary_to_anki('Chinese Vocab in the Wild', vocab_entry)
+            with open('./config.json', 'r') as f:
+                CONFIG = json.load(f)
+            add_vocabulary_to_anki(CONFIG['anki'], vocab_entry)
     
         threading.Thread(target=add_to_anki_thread).start()
-
 
     def remove_GUI(self):
         if self.card:

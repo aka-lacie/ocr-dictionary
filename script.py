@@ -17,7 +17,7 @@ import yaml
 import pyautogui
 import json
 from tkinter import Tk, Canvas, Toplevel, Frame, Label, TclError
-from vocab import VocabCanvas
+from utils.vocab import VocabCanvas
 import keyboard
 import mouse
 
@@ -35,7 +35,7 @@ reader = easyocr.Reader(['ch_sim'])
 print("EasyOCR initiated using " + reader.device)
 
 # Load the Chinese-English dictionary
-with open('sim_cn_dictionary.json', 'r') as file:
+with open('utils/sim_cn_dictionary.json', 'r') as file:
     list_of_dicts = json.load(file)
     DICTIONARY = {}
     for entry in list_of_dicts:
@@ -290,7 +290,7 @@ def find_vocab_matches(text: str) -> list:
 
     return matches # should be len(text) long
 
-def save_ocr_data(image: Image.Image, ocr_results, save_dir=CONFIG['save_dir']):
+def save_ocr_data(image: Image.Image, ocr_results, save_dir):
     """
     Save img to saved_data/images and ocr results to saved_data/ocr_data.yaml
     """
@@ -321,7 +321,7 @@ def save_ocr_data(image: Image.Image, ocr_results, save_dir=CONFIG['save_dir']):
     with open(yaml_file_path, 'a', encoding='utf-8') as file:
         yaml.dump([ocr_data], file, allow_unicode=True)
 
-def thread_save_ocr_data(image, ocr_results, save_dir=CONFIG['save_dir']):
+def thread_save_ocr_data(image, ocr_results, save_dir):
     """
     Wrapper function to run save_ocr_data in a separate thread.
     """
@@ -356,10 +356,10 @@ def run(manual=False, fullscreen=False):
             print("No text detected.")
             continue
 
-        thread_save_ocr_data(img, easyocr_results)
-
         for item in easyocr_results:
             bbox, text, confidence = item # bbox = [x1, y1, x2, y2]
+            if not text: continue
+
             if text[-1] == '?': # jank but helps calibrate character positions
                 bbox[2] -= 30
             elif text[-1] in PUNCTUATION:
@@ -382,12 +382,6 @@ def run(manual=False, fullscreen=False):
                 vocab_bbox = [int(x1 + n * width), int(y1), int(x1 + (n + 1) * width), int(y2)]
                 vocab_canvas.add_vocab_card(vocab, vocab_bbox, DICTIONARY[vocab])
 
-def gracefully_die(event=None):
-    keyboard.unhook_all()
-    root.quit()
-    root.destroy()
-    sys.exit(0)
-
 def toggle_save():
     update_config(('save_data', not CONFIG['save_data']))
     print(f"Saving OCR data {'on' if CONFIG['save_data'] else 'off'}")
@@ -403,17 +397,14 @@ def toggle_strict_mode():
 if __name__ == "__main__":
     # Bind the function to hotkey
     keyboard.add_hotkey(CONFIG['manual_capture_hotkey'], lambda: run(manual=True))
-    keyboard.add_hotkey(CONFIG['configure_bbox_hotkey'], configure_bbox)
     keyboard.add_hotkey(CONFIG['fullscreen_capture_hotkey'], lambda: run(fullscreen=True))
     mouse.on_middle_click(lambda: run(fullscreen=True))
-    keyboard.add_hotkey('f8', toggle_save)
-    keyboard.add_hotkey('f9', pick_text_color)
-    keyboard.add_hotkey('f10', toggle_verbose)
+    keyboard.add_hotkey(CONFIG['colorpick_hotkey'], pick_text_color)
+    keyboard.add_hotkey(CONFIG['toggle_verbose_hotkey'], toggle_verbose)
     keyboard.add_hotkey(CONFIG['strict_mode_hotkey'], toggle_strict_mode)
 
     root = Tk()
     root.attributes('-fullscreen', True, '-topmost', True, '-alpha', 0)
-    # root.overrideredirect(True)
 
     keyboard.add_hotkey('esc', lambda: clear_canvases(root))
     mouse.on_right_click(lambda: clear_canvases(root))
@@ -425,7 +416,3 @@ if __name__ == "__main__":
         print(f"Error: {e}")
     finally:
         sys.exit(0)
-
-
-# TODO:
-# - Add a way to manually add custom vocab to the dictionary, categorize by game and only show if in that game

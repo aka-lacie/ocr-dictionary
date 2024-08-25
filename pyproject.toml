@@ -4,10 +4,10 @@ version = "0.1.0"
 description = ""
 authors = ["aka_lacie"]
 readme = "README.md"
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.9"
-pytesseract = "^0.3.10"
 pillow = "^10.3.0"
 pypinyin = "^0.51.0"
 pygetwindow = "^0.0.9"
