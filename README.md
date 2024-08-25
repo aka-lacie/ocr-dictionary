@@ -55,11 +55,11 @@ If you open Anki in the background, you can automatically add vocab cards to a d
 
 ## Config
 
-Much of these controls and settings can be adjusted to your liking in `config.json`. For Anki, if your cards are set up in a different language, change the corresponding fields to the correct string names.
+Much of these controls and settings can be adjusted to your liking in `config.json`. For Anki, if your cards are set up in a different language, change the corresponding fields to the correct strings.
 
 ## Support
 
-This project is developed on Windows with the intention of using on Chinese games with solid, horizontal text like Wuthering Wave or Genshin. It has not been tested outside of these environments.
+This project is developed on Windows with the intention of using on Chinese games with solid, horizontal text like Wuthering Waves or Genshin. It has not been tested outside of these environments.
 
 Traditional Chinese and Japanese support will be added next.
 
